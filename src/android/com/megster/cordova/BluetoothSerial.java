@@ -19,7 +19,7 @@ import org.apache.cordova.LOG;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-
+import java.lang.reflect.Method;
 import java.util.Set;
 
 /**
@@ -31,6 +31,7 @@ public class BluetoothSerial extends CordovaPlugin {
     private static final String LIST = "list";
     private static final String CONNECT = "connect";
     private static final String CONNECT_INSECURE = "connectInsecure";
+    private static final String PAIR_REQUEST = "pair";
     private static final String DISCONNECT = "disconnect";
     private static final String WRITE = "write";
     private static final String AVAILABLE = "available";
@@ -54,6 +55,7 @@ public class BluetoothSerial extends CordovaPlugin {
     private CallbackContext dataAvailableCallback;
     private CallbackContext rawDataAvailableCallback;
     private CallbackContext enableBluetoothCallback;
+    private CallbackContext pairRequestCallback;
     private CallbackContext deviceDiscoveredCallback;
 
     private BluetoothAdapter bluetoothAdapter;
@@ -78,6 +80,7 @@ public class BluetoothSerial extends CordovaPlugin {
     StringBuffer buffer = new StringBuffer();
     private String delimiter;
     private static final int REQUEST_ENABLE_BLUETOOTH = 1;
+    private static final int REQUEST_PAIR_DEVICE = 0x1321;
 
     @Override
     public boolean execute(String action, CordovaArgs args, CallbackContext callbackContext) throws JSONException {
@@ -213,7 +216,9 @@ public class BluetoothSerial extends CordovaPlugin {
 
             this.deviceDiscoveredCallback = null;
 
-        } else {
+        } else if (action.equals(PAIR_REQUEST)){
+        	pairRequest(args, callbackContext);
+        }else {
             validAction = false;
 
         }
@@ -239,6 +244,11 @@ public class BluetoothSerial extends CordovaPlugin {
             }
 
             enableBluetoothCallback = null;
+        } else if (requestCode == REQUEST_PAIR_DEVICE) {
+        	Log.d(TAG, "REQUEST_PAIR_DEVICE");
+        	if (pairRequestCallback != null) {
+        		pairRequestCallback.success("resultCode == Activity.RESULT_OK = " + (resultCode == Activity.RESULT_OK));
+        	}
         }
     }
 
@@ -324,7 +334,68 @@ public class BluetoothSerial extends CordovaPlugin {
             callbackContext.error("Could not connect to " + macAddress);
         }
     }
+    
+    public void pairRequest(CordovaArgs args, CallbackContext callbackContext) throws JSONException {
+    	String macAddress = args.getString(0);
+    	pairRequestCallback = callbackContext;
+    	BluetoothDevice device = bluetoothAdapter.getRemoteDevice(macAddress);
+    	IntentFilter intent = new IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
+    	cordova.getActivity().registerReceiver(mPairReceiver, intent);
+    	pairDevice(device);
+        
+    }
+    
+    private void pairDevice(BluetoothDevice device) {
+        try {
+            Method method = device.getClass().getMethod("createBond", (Class[]) null);
+            method.invoke(device, (Object[]) null);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    
+    @SuppressWarnings("unused")
+	private void unpairDevice(BluetoothDevice device) {
+        try {
+            Method method = device.getClass().getMethod("removeBond", (Class[]) null);
+            method.invoke(device, (Object[]) null);
+ 
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    private final BroadcastReceiver mPairReceiver = new BroadcastReceiver() {
 
+		public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            if (BluetoothDevice.ACTION_BOND_STATE_CHANGED.equals(action)) {
+                 final int state        = intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.ERROR);
+                 final int prevState    = intent.getIntExtra(BluetoothDevice.EXTRA_PREVIOUS_BOND_STATE, BluetoothDevice.ERROR);
+                 BluetoothDevice device = (BluetoothDevice) intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+                 if (device != null && pairRequestCallback != null) {
+                	 JSONObject deviceObject = new JSONObject();
+	                 try {
+	                	 deviceObject.put("name", device.getName());
+	                	 deviceObject.put("address", device.getAddress());
+	                	 deviceObject.put("class", device.getBluetoothClass().getDeviceClass());
+	                	 if (prevState == BluetoothDevice.BOND_BONDING) {
+                             if (state == BluetoothDevice.BOND_BONDED) {
+                                 pairRequestCallback.success(deviceObject);
+                             } else {
+                                 pairRequestCallback.error(deviceObject);
+                             }
+                             cordova.getActivity().unregisterReceiver(this);
+                         }
+	                 } catch (JSONException e) {
+	                	 pairRequestCallback.error(deviceObject);
+	                 }
+
+                 }
+ 
+            }
+        }
+    };
+    
     // The Handler that gets information back from the BluetoothSerialService
     // Original code used handler for the because it was talking to the UI.
     // Consider replacing with normal callbacks

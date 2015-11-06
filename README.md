@@ -36,6 +36,7 @@ There are some [sample projects](https://github.com/don/BluetoothSerial/tree/mas
 ## Methods
 
 - [bluetoothSerial.connect](#connect)
+- [bluetoothSerial.pair](#pair)
 - [bluetoothSerial.connectInsecure](#connectInsecure)
 - [bluetoothSerial.disconnect](#disconnect)
 - [bluetoothSerial.write](#write)
@@ -82,6 +83,32 @@ For Windows Phone, `connect` takes a MAC address of the remote device. The MAC a
 - __macAddress_or_uuid__: Identifier of the remote device.
 - __connectSuccess__: Success callback function that is invoked when the connection is successful.
 - __connectFailure__: Error callback function, invoked when error occurs or the connection disconnects.
+
+## pair
+
+Pair/Bond to a Bluetooth device.
+
+    bluetoothSerial.pair(macAddress_or_uuid, connectSuccess, connectFailure);
+
+### Description
+
+Function `pair` connects to a Bluetooth device.  The callback is long running.  Success will be called when the connection is successful.  Failure is called if the connection fails, or later if the connection disconnects. An error message is passed to the failure callback.
+
+#### Android
+For Android, `pair` takes a MAC address of the remote device.  
+
+#### iOS
+`pair` is **not supported** on iOS.
+
+#### Windows Phone
+`pair` is **not supported** on Windows Phone.
+
+### Parameters
+
+- __macAddress_or_uuid__: Identifier of the remote device.
+- __connectSuccess__: Success callback function that is invoked when the connection is successful.
+- __connectFailure__: Error callback function, invoked when error occurs or the connection disconnects.
+
 
 ## connectInsecure
 
